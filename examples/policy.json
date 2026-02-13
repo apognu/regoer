@@ -1,0 +1,36 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Sid1",
+      "Effect": "Allow",
+      "Principal": { "AWS": "apognu" },
+      "NotAction": ["s3:Put*", "s3:Delete*"],
+      "Resource": "arn:aws:s3:::public/${aws:userid}/*.jpg",
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalType": ["AssumedRole", "User"],
+          "aws:userid": "apognu"
+        },
+        "IpAddress": {
+          "aws:SourceIp": ["10.0.0.0/8", "192.168.0.0/24"]
+        },
+        "DateGreaterThan": {
+          "aws:CurrentTime": "2025-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "Sid": "DenyForProduction",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "*",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:BucketTag/env": "production"
+        }
+      }
+    }
+  ]
+}

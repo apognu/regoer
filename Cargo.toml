@@ -1,0 +1,13 @@
+[package]
+name = "regoer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aws-iam = "~0.2.2"
+serde_json = "~1.0"
+serde = "~1.0"
+itertools = "~0.14"
+regorus = { version = "~0.9", default-features = false, features = ["arc", "glob", "net", "std", "time"] }
+thiserror = "~2.0"
+

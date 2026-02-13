@@ -1,0 +1,135 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache build artifacts
+        id: build-artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: "check-${{ github.job }}-${{hashFiles('Cargo.lock')}}"
+          restore-keys: |
+            check-${{ github.job }}-
+            check-
+
+      - name: Check
+        run: cargo check --all-features --all-targets
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache build artifacts
+        id: build-artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: "lint-${{ github.job }}-${{hashFiles('Cargo.lock')}}"
+          restore-keys: |
+            lint-${{ github.job }}-
+            lint-
+            check-${{ github.job }}-
+            check-
+
+      - name: Lint
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: Format
+        run: cargo fmt --check
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [check, lint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache build artifacts
+        id: build-artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: "test-${{ github.job }}-${{hashFiles('Cargo.lock')}}"
+          restore-keys: |
+            test-${{ github.job }}-
+            test-
+            check-${{ github.job }}-
+            check-
+
+      - name: Run examples
+        run: cargo run --example main -- ./examples/policy.json
+
+      - name: Test
+        run: cargo test
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [check, lint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache build artifacts
+        id: build-artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: "build-${{ github.job }}-${{hashFiles('Cargo.lock')}}"
+          restore-keys: |
+            build-${{ github.job }}-
+            build-
+            check-${{ github.job }}-
+            check-
+
+      - name: Build
+        run: cargo build --release
