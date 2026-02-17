@@ -13,6 +13,8 @@ const BASE: &str = r#"package main
 default allow = false
 default deny = false
 default permit = false
+to_array(x) := x if { is_array(x) }
+to_array(x) := [x] if { not is_array(x) }
 allow if {
   permit
   not deny
@@ -131,7 +133,7 @@ where
         }
       }
 
-      conditions.push((operator.to_string(), attributes));
+      conditions.push((operator, attributes));
     }
 
     let s = Statement {

@@ -9,7 +9,7 @@ mod parser;
 mod statement;
 mod values;
 
-use std::{io, sync::Arc};
+use std::{fmt, io, sync::Arc};
 
 use regorus::{CompiledPolicy, Engine};
 use serde::Serialize;
@@ -157,5 +157,18 @@ impl Evaluator {
   /// Get the policies compiled into this evaluator.
   pub fn rego(&self) -> &[Policy] {
     &self.policies
+  }
+}
+
+impl fmt::Display for Evaluator {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    for policy in &self.policies {
+      match policy.serialize() {
+        Ok(output) => write!(f, "{}", output)?,
+        Err(err) => write!(f, "// ERROR: {}", err)?,
+      }
+    }
+
+    Ok(())
   }
 }

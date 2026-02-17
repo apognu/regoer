@@ -1,16 +1,8 @@
-use regoer::{Error, Regoer};
+mod helpers;
+
 use serde_json::json;
 
-fn compile_policy(policy_json: serde_json::Value) -> Result<regoer::Evaluator, Error> {
-  let mut regoer = Regoer::default();
-  let policy_str = serde_json::to_string(&policy_json).unwrap();
-  regoer.add_policy(policy_str.as_bytes())?;
-  regoer.compile()
-}
-
-fn evaluate(evaluator: &regoer::Evaluator, input: serde_json::Value) -> Result<bool, Error> {
-  evaluator.evaluate(input)
-}
+use crate::helpers::{compile_policy, evaluate};
 
 #[test]
 fn simple_allow_basic_validation() {
@@ -25,7 +17,7 @@ fn simple_allow_basic_validation() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Exact match should allow
   let input = json!({
@@ -33,7 +25,7 @@ fn simple_allow_basic_validation() {
       "action": "s3:GetObject",
       "resource": "arn:aws:s3:::test-bucket/test-file.txt"
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), true, "Should allow exact match");
+  assert_eq!(evaluate(&evaluator, input), true, "Should allow exact match");
 
   // Wrong principal should deny
   let input = json!({
@@ -41,7 +33,7 @@ fn simple_allow_basic_validation() {
       "action": "s3:GetObject",
       "resource": "arn:aws:s3:::test-bucket/test-file.txt"
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), false, "Should deny wrong principal");
+  assert_eq!(evaluate(&evaluator, input), false, "Should deny wrong principal");
 
   // Wrong action should deny
   let input = json!({
@@ -49,7 +41,7 @@ fn simple_allow_basic_validation() {
       "action": "s3:PutObject",
       "resource": "arn:aws:s3:::test-bucket/test-file.txt"
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), false, "Should deny wrong action");
+  assert_eq!(evaluate(&evaluator, input), false, "Should deny wrong action");
 
   // Wrong resource should deny
   let input = json!({
@@ -57,7 +49,7 @@ fn simple_allow_basic_validation() {
       "action": "s3:GetObject",
       "resource": "arn:aws:s3:::test-bucket/other-file.txt"
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), false, "Should deny wrong resource");
+  assert_eq!(evaluate(&evaluator, input), false, "Should deny wrong resource");
 }
 
 #[test]
@@ -81,7 +73,7 @@ fn wildcard_with_condition_validation() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Matches wildcard action, resource, and all conditions
   let input = json!({
@@ -93,7 +85,7 @@ fn wildcard_with_condition_validation() {
           "SourceIp": "192.168.1.100"
       }
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), true, "Should allow when all conditions match");
+  assert_eq!(evaluate(&evaluator, input), true, "Should allow when all conditions match");
 
   // Different Get* action should also work
   let input = json!({
@@ -105,7 +97,7 @@ fn wildcard_with_condition_validation() {
           "SourceIp": "192.168.1.100"
       }
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), true, "Should allow other Get* actions");
+  assert_eq!(evaluate(&evaluator, input), true, "Should allow other Get* actions");
 
   // Wrong IP should deny
   let input = json!({
@@ -117,7 +109,7 @@ fn wildcard_with_condition_validation() {
           "SourceIp": "10.0.0.1"
       }
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), false, "Should deny wrong IP address");
+  assert_eq!(evaluate(&evaluator, input), false, "Should deny wrong IP address");
 
   // Wrong userid should deny
   let input = json!({
@@ -129,7 +121,7 @@ fn wildcard_with_condition_validation() {
           "SourceIp": "192.168.1.100"
       }
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), false, "Should deny wrong userid");
+  assert_eq!(evaluate(&evaluator, input), false, "Should deny wrong userid");
 
   // Action doesn't match Get* pattern
   let input = json!({
@@ -141,7 +133,7 @@ fn wildcard_with_condition_validation() {
           "SourceIp": "192.168.1.100"
       }
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), false, "Should deny non-Get* action");
+  assert_eq!(evaluate(&evaluator, input), false, "Should deny non-Get* action");
 
   // Resource outside wildcard scope
   let input = json!({
@@ -153,7 +145,7 @@ fn wildcard_with_condition_validation() {
           "SourceIp": "192.168.1.100"
       }
   });
-  assert_eq!(evaluate(&evaluator, input).unwrap(), false, "Should deny wrong bucket");
+  assert_eq!(evaluate(&evaluator, input), false, "Should deny wrong bucket");
 }
 
 #[test]
@@ -169,7 +161,7 @@ fn multiple_principals_array() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // All three principals should be allowed
   assert!(
@@ -180,8 +172,7 @@ fn multiple_principals_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::shared-bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow alice"
   );
 
@@ -193,8 +184,7 @@ fn multiple_principals_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::shared-bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow bob"
   );
 
@@ -206,8 +196,7 @@ fn multiple_principals_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::shared-bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow charlie"
   );
 
@@ -220,8 +209,7 @@ fn multiple_principals_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::shared-bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny eve"
   );
 }
@@ -239,7 +227,7 @@ fn multiple_actions_array() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // All three actions should be allowed
   assert!(
@@ -250,8 +238,7 @@ fn multiple_actions_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow GetObject"
   );
 
@@ -263,8 +250,7 @@ fn multiple_actions_array() {
           "action": "s3:PutObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow PutObject"
   );
 
@@ -276,8 +262,7 @@ fn multiple_actions_array() {
           "action": "s3:DeleteObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow DeleteObject"
   );
 
@@ -290,8 +275,7 @@ fn multiple_actions_array() {
           "action": "s3:ListBucket",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny ListBucket"
   );
 }
@@ -313,7 +297,7 @@ fn multiple_resources_array() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // All three specific resources should be allowed
   assert!(
@@ -324,8 +308,7 @@ fn multiple_resources_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket1/file1.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow bucket1/file1.txt"
   );
 
@@ -337,8 +320,7 @@ fn multiple_resources_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket2/file2.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow bucket2/file2.txt"
   );
 
@@ -350,8 +332,7 @@ fn multiple_resources_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket3/specific-file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow specific file in bucket3"
   );
 
@@ -364,8 +345,7 @@ fn multiple_resources_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket3/other-file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny other file in bucket3"
   );
 
@@ -377,8 +357,7 @@ fn multiple_resources_array() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket4/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny bucket4"
   );
 }
@@ -399,7 +378,7 @@ fn multiple_resources_array_with_wildcards() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Resources in either bucket should be allowed
   assert!(
@@ -410,8 +389,7 @@ fn multiple_resources_array_with_wildcards() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket1/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow bucket1"
   );
 
@@ -423,8 +401,7 @@ fn multiple_resources_array_with_wildcards() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket2/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow bucket2"
   );
 }
@@ -442,7 +419,7 @@ fn action_wildcard_prefix() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Various Describe* actions should be allowed
   assert!(
@@ -453,8 +430,7 @@ fn action_wildcard_prefix() {
           "action": "ec2:DescribeInstances",
           "resource": "*"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow DescribeInstances"
   );
 
@@ -466,8 +442,7 @@ fn action_wildcard_prefix() {
           "action": "ec2:DescribeVolumes",
           "resource": "*"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow DescribeVolumes"
   );
 
@@ -479,8 +454,7 @@ fn action_wildcard_prefix() {
           "action": "ec2:DescribeSecurityGroups",
           "resource": "*"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow DescribeSecurityGroups"
   );
 
@@ -493,8 +467,7 @@ fn action_wildcard_prefix() {
           "action": "ec2:TerminateInstances",
           "resource": "*"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny TerminateInstances"
   );
 }
@@ -512,7 +485,7 @@ fn resource_wildcard_patterns() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Resources under /public/ should be allowed
   assert!(
@@ -523,8 +496,7 @@ fn resource_wildcard_patterns() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::my-bucket/public/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow file in public"
   );
 
@@ -536,8 +508,7 @@ fn resource_wildcard_patterns() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::my-bucket/public/subdir/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow file in public/subdir"
   );
 
@@ -550,8 +521,7 @@ fn resource_wildcard_patterns() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::my-bucket/private/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny file in private"
   );
 }
@@ -569,7 +539,7 @@ fn wildcard_star_all() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Any action and resource should be allowed for admin
   assert!(
@@ -580,8 +550,7 @@ fn wildcard_star_all() {
           "action": "s3:DeleteBucket",
           "resource": "arn:aws:s3:::any-bucket"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow any action"
   );
 
@@ -593,8 +562,7 @@ fn wildcard_star_all() {
           "action": "ec2:TerminateInstances",
           "resource": "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow any resource"
   );
 }
@@ -612,7 +580,7 @@ fn not_action_single() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // All actions except DeleteObject should be allowed
   assert!(
@@ -623,8 +591,7 @@ fn not_action_single() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow GetObject"
   );
 
@@ -636,8 +603,7 @@ fn not_action_single() {
           "action": "s3:PutObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow PutObject"
   );
 
@@ -649,8 +615,7 @@ fn not_action_single() {
           "action": "s3:ListBucket",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow ListBucket"
   );
 
@@ -663,8 +628,7 @@ fn not_action_single() {
           "action": "s3:DeleteObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny DeleteObject"
   );
 }
@@ -682,7 +646,7 @@ fn not_action_multiple() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Safe actions should be allowed
   assert!(
@@ -693,8 +657,7 @@ fn not_action_multiple() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow GetObject"
   );
 
@@ -706,8 +669,7 @@ fn not_action_multiple() {
           "action": "s3:ListBucket",
           "resource": "arn:aws:s3:::bucket"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow ListBucket"
   );
 
@@ -720,8 +682,7 @@ fn not_action_multiple() {
           "action": "s3:DeleteObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny DeleteObject"
   );
 
@@ -733,8 +694,7 @@ fn not_action_multiple() {
           "action": "s3:DeleteBucket",
           "resource": "arn:aws:s3:::bucket"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny DeleteBucket"
   );
 
@@ -746,8 +706,7 @@ fn not_action_multiple() {
           "action": "s3:PutBucketPolicy",
           "resource": "arn:aws:s3:::bucket"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny PutBucketPolicy"
   );
 }
@@ -765,7 +724,7 @@ fn not_resource_single() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Non-production resources should be allowed
   assert!(
@@ -776,8 +735,7 @@ fn not_resource_single() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::dev/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow dev bucket"
   );
 
@@ -789,8 +747,7 @@ fn not_resource_single() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::staging/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow staging bucket"
   );
 
@@ -803,8 +760,7 @@ fn not_resource_single() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::production/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny production bucket"
   );
 }
@@ -826,7 +782,7 @@ fn not_resource_multiple() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Non-restricted resources should be allowed
   assert!(
@@ -837,8 +793,7 @@ fn not_resource_multiple() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::dev/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow dev bucket"
   );
 
@@ -851,8 +806,7 @@ fn not_resource_multiple() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::production/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny production"
   );
 
@@ -864,8 +818,7 @@ fn not_resource_multiple() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::sensitive/data.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny sensitive"
   );
 
@@ -877,8 +830,7 @@ fn not_resource_multiple() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::backups/backup.tar.gz"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny backups"
   );
 }
@@ -901,7 +853,7 @@ fn date_greater_than_condition() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Access after 2025-01-01 should be allowed
   assert!(
@@ -915,8 +867,7 @@ fn date_greater_than_condition() {
               "CurrentTime": "2025-06-15T12:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow access after date"
   );
 
@@ -931,8 +882,7 @@ fn date_greater_than_condition() {
               "CurrentTime": "2026-01-01T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow access in 2026"
   );
 
@@ -948,8 +898,7 @@ fn date_greater_than_condition() {
               "CurrentTime": "2024-12-31T23:59:59Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny access before date"
   );
 }
@@ -972,7 +921,7 @@ fn date_less_than_condition() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Access before 2025-12-31 should be allowed
   assert!(
@@ -986,8 +935,7 @@ fn date_less_than_condition() {
               "CurrentTime": "2025-01-01T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow access before date"
   );
 
@@ -1003,8 +951,7 @@ fn date_less_than_condition() {
               "CurrentTime": "2026-01-01T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny access after date"
   );
 }
@@ -1030,7 +977,7 @@ fn date_range_condition() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Access within 2025 should be allowed
   assert!(
@@ -1044,8 +991,7 @@ fn date_range_condition() {
               "CurrentTime": "2025-06-15T12:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow access within date range"
   );
 
@@ -1061,8 +1007,7 @@ fn date_range_condition() {
               "CurrentTime": "2024-12-31T23:59:59Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny access before range"
   );
 
@@ -1078,8 +1023,7 @@ fn date_range_condition() {
               "CurrentTime": "2026-01-01T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny access after range"
   );
 }
@@ -1102,7 +1046,7 @@ fn numeric_less_than_condition() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Files under 10MB should be allowed
   assert!(
@@ -1116,8 +1060,7 @@ fn numeric_less_than_condition() {
               "ContentLength": 1048576  // 1MB
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow small file"
   );
 
@@ -1132,8 +1075,7 @@ fn numeric_less_than_condition() {
               "ContentLength": 5242880  // 5MB
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow medium file"
   );
 
@@ -1149,8 +1091,7 @@ fn numeric_less_than_condition() {
               "ContentLength": 20971520  // 20MB
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny large file"
   );
 }
@@ -1173,7 +1114,7 @@ fn numeric_greater_than_condition() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Values greater than 0 should be allowed
   assert!(
@@ -1187,8 +1128,7 @@ fn numeric_greater_than_condition() {
               "Select": 1
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow value > 0"
   );
 
@@ -1204,8 +1144,7 @@ fn numeric_greater_than_condition() {
               "Select": 0
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny value = 0"
   );
 }
@@ -1228,7 +1167,7 @@ fn ip_address_condition() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // IPs in allowed ranges should be allowed
   assert!(
@@ -1242,8 +1181,7 @@ fn ip_address_condition() {
               "SourceIp": "192.168.1.100"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow IP in 192.168.1.0/24"
   );
 
@@ -1258,8 +1196,7 @@ fn ip_address_condition() {
               "SourceIp": "10.5.10.20"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow IP in 10.0.0.0/8"
   );
 
@@ -1275,8 +1212,7 @@ fn ip_address_condition() {
               "SourceIp": "172.16.0.1"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny IP outside ranges"
   );
 }
@@ -1299,7 +1235,7 @@ fn not_ip_address_condition() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // IPs in blocked ranges should be denied
   assert!(
@@ -1313,8 +1249,7 @@ fn not_ip_address_condition() {
               "SourceIp": "10.5.10.20"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny IP in 10.0.0.0/8"
   );
 
@@ -1329,8 +1264,7 @@ fn not_ip_address_condition() {
               "SourceIp": "192.168.0.50"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny IP in 192.168.0.0/24"
   );
 
@@ -1346,8 +1280,7 @@ fn not_ip_address_condition() {
               "SourceIp": "172.16.0.1"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow IP outside blocked ranges"
   );
 }
@@ -1365,7 +1298,7 @@ fn resource_interpolation_basic() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // User accessing their own directory should be allowed
   assert!(
@@ -1379,8 +1312,7 @@ fn resource_interpolation_basic() {
               "userid": "alice"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow user to access their own directory"
   );
 
@@ -1396,8 +1328,7 @@ fn resource_interpolation_basic() {
               "userid": "alice"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny user accessing another user's directory"
   );
 }
@@ -1415,7 +1346,7 @@ fn resource_interpolation_multiple_variables() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Matching all variables should be allowed
   assert!(
@@ -1431,8 +1362,7 @@ fn resource_interpolation_multiple_variables() {
           },
           "env": "dev"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow when all variables match"
   );
 
@@ -1450,8 +1380,7 @@ fn resource_interpolation_multiple_variables() {
           },
           "env": "dev"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny when variables don't match"
   );
 }
@@ -1469,7 +1398,7 @@ fn resource_interpolation_with_file_extension() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // User accessing their own .jpg files should be allowed
   assert!(
@@ -1483,8 +1412,7 @@ fn resource_interpolation_with_file_extension() {
               "userid": "alice"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow user's own .jpg file"
   );
 
@@ -1500,8 +1428,7 @@ fn resource_interpolation_with_file_extension() {
               "userid": "alice"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny non-.jpg file"
   );
 }
@@ -1527,7 +1454,7 @@ fn multiple_allow_statements() {
       ]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Both buckets should be accessible
   assert!(
@@ -1538,8 +1465,7 @@ fn multiple_allow_statements() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket1/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow access to bucket1"
   );
 
@@ -1551,8 +1477,7 @@ fn multiple_allow_statements() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket2/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow access to bucket2"
   );
 
@@ -1565,8 +1490,7 @@ fn multiple_allow_statements() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket3/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny access to bucket3"
   );
 }
@@ -1592,7 +1516,7 @@ fn deny_overrides_allow() {
       ]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Allow statement grants GetObject
   assert!(
@@ -1603,8 +1527,7 @@ fn deny_overrides_allow() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow GetObject"
   );
 
@@ -1616,8 +1539,7 @@ fn deny_overrides_allow() {
           "action": "s3:PutObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow PutObject"
   );
 
@@ -1630,8 +1552,7 @@ fn deny_overrides_allow() {
           "action": "s3:DeleteObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny DeleteObject (Deny overrides Allow)"
   );
 }
@@ -1657,7 +1578,7 @@ fn deny_all() {
       ]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Allow statement grants GetObject
   assert!(
@@ -1668,8 +1589,7 @@ fn deny_all() {
           "action": "s3:GetObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow GetObject"
   );
 
@@ -1681,8 +1601,7 @@ fn deny_all() {
           "action": "s3:PutObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should allow PutObject"
   );
 
@@ -1695,8 +1614,7 @@ fn deny_all() {
           "action": "s3:DeleteObject",
           "resource": "arn:aws:s3:::bucket/file.txt"
       })
-    )
-    .unwrap(),
+    ),
     "Should deny DeleteObject (Deny overrides Allow)"
   );
 }
@@ -1727,7 +1645,7 @@ fn conditional_deny() {
       ]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Access to production bucket from us-east-1 should be denied
   assert!(
@@ -1741,8 +1659,7 @@ fn conditional_deny() {
               "RequestedRegion": "us-east-1"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny production access from us-east-1"
   );
 
@@ -1758,8 +1675,7 @@ fn conditional_deny() {
               "RequestedRegion": "eu-west-1"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow production access from eu-west-1"
   );
 
@@ -1775,8 +1691,7 @@ fn conditional_deny() {
               "RequestedRegion": "us-east-1"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow dev access from any region"
   );
 }
@@ -1799,7 +1714,7 @@ fn numeric_not_equals_with_array() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Values in the forbidden list should be DENIED
   assert!(
@@ -1813,8 +1728,7 @@ fn numeric_not_equals_with_array() {
               "VersionId": 100
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny VersionId=100 (equals item in list)"
   );
 
@@ -1829,8 +1743,7 @@ fn numeric_not_equals_with_array() {
               "VersionId": 200
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny VersionId=200 (equals item in list)"
   );
 
@@ -1845,8 +1758,7 @@ fn numeric_not_equals_with_array() {
               "VersionId": 300
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny VersionId=300 (equals item in list)"
   );
 
@@ -1862,8 +1774,7 @@ fn numeric_not_equals_with_array() {
               "VersionId": 50
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow VersionId=50 (not equal to any in list)"
   );
 
@@ -1878,8 +1789,7 @@ fn numeric_not_equals_with_array() {
               "VersionId": 500
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow VersionId=500 (not equal to any in list)"
   );
 }
@@ -1902,7 +1812,7 @@ fn string_not_equals_ignore_case_with_array() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Forbidden usernames should be DENIED (case-insensitive)
   assert!(
@@ -1916,8 +1826,7 @@ fn string_not_equals_ignore_case_with_array() {
               "username": "admin"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 'admin' (matches ADMIN case-insensitively)"
   );
 
@@ -1932,8 +1841,7 @@ fn string_not_equals_ignore_case_with_array() {
               "username": "Root"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 'Root' (matches ROOT case-insensitively)"
   );
 
@@ -1948,8 +1856,7 @@ fn string_not_equals_ignore_case_with_array() {
               "username": "SYSTEM"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 'SYSTEM'"
   );
 
@@ -1965,8 +1872,7 @@ fn string_not_equals_ignore_case_with_array() {
               "username": "alice"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow alice (doesn't match any)"
   );
 
@@ -1981,8 +1887,7 @@ fn string_not_equals_ignore_case_with_array() {
               "username": "bob"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow bob (doesn't match any)"
   );
 }
@@ -2009,7 +1914,7 @@ fn date_not_equals_with_array() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Forbidden dates should be DENIED
   assert!(
@@ -2023,8 +1928,7 @@ fn date_not_equals_with_array() {
               "CurrentTime": "2025-12-25T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 2025-12-25 (equals item in list)"
   );
 
@@ -2039,8 +1943,7 @@ fn date_not_equals_with_array() {
               "CurrentTime": "2025-12-31T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 2025-12-31 (equals item in list)"
   );
 
@@ -2055,8 +1958,7 @@ fn date_not_equals_with_array() {
               "CurrentTime": "2026-01-01T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 2026-01-01 (equals item in list)"
   );
 
@@ -2072,8 +1974,7 @@ fn date_not_equals_with_array() {
               "CurrentTime": "2025-06-15T12:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow 2025-06-15 (doesn't match any)"
   );
 
@@ -2088,8 +1989,7 @@ fn date_not_equals_with_array() {
               "CurrentTime": "2025-12-31T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 2025-12-31 (New Year's Eve - in forbidden list)"
   );
 
@@ -2104,8 +2004,7 @@ fn date_not_equals_with_array() {
               "CurrentTime": "2026-01-01T00:00:00Z"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 2026-01-01 (New Year's Day - in forbidden list)"
   );
 }
@@ -2128,7 +2027,7 @@ fn string_not_like_with_array() {
       }]
   });
 
-  let evaluator = compile_policy(policy).expect("Failed to compile policy");
+  let evaluator = compile_policy(policy);
 
   // Usernames matching forbidden patterns should be DENIED
   assert!(
@@ -2142,8 +2041,7 @@ fn string_not_like_with_array() {
               "username": "admin-alice"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 'admin-alice' (matches admin-* pattern)"
   );
 
@@ -2158,8 +2056,7 @@ fn string_not_like_with_array() {
               "username": "root-user"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 'root-user' (matches root-* pattern)"
   );
 
@@ -2174,8 +2071,7 @@ fn string_not_like_with_array() {
               "username": "system-daemon"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should deny 'system-daemon' (matches system-* pattern)"
   );
 
@@ -2191,8 +2087,7 @@ fn string_not_like_with_array() {
               "username": "alice"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow 'alice' (doesn't match any pattern)"
   );
 
@@ -2207,8 +2102,426 @@ fn string_not_like_with_array() {
               "username": "bob-developer"
           }
       })
-    )
-    .unwrap(),
+    ),
     "Should allow 'bob-developer' (doesn't match any pattern)"
+  );
+}
+
+// ForAnyValue: allow if at least one context value matches at least one policy value.
+#[test]
+fn for_any_value_string_equals_multi_policy_value() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAnyValue:StringEquals": {
+                  "aws:TagKeys": ["production", "staging"]
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // Context has one tag that matches
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production", "debug"] }
+      })
+    ),
+    "Should allow when one tag matches"
+  );
+
+  // Context has multiple matching tags
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production", "staging"] }
+      })
+    ),
+    "Should allow when all tags match"
+  );
+
+  // No context tag matches any policy value
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["development", "debug"] }
+      })
+    ),
+    "Should deny when no tags match"
+  );
+}
+
+// ForAnyValue with a single policy value: the wrapping into a list must not break semantics.
+#[test]
+fn for_any_value_string_equals_single_policy_value() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAnyValue:StringEquals": {
+                  "aws:TagKeys": "production"
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // Context includes the required tag
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production", "debug"] }
+      })
+    ),
+    "Should allow when context contains the policy tag"
+  );
+
+  // Context does not include the required tag
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["development", "debug"] }
+      })
+    ),
+    "Should deny when context does not contain the policy tag"
+  );
+}
+
+// ForAllValues: allow only if every context value matches at least one policy value.
+#[test]
+fn for_all_values_string_equals_multi_policy_value() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAllValues:StringEquals": {
+                  "aws:TagKeys": ["production", "staging"]
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // All context tags are in the policy list
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production"] }
+      })
+    ),
+    "Should allow when all context tags are permitted"
+  );
+
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production", "staging"] }
+      })
+    ),
+    "Should allow when context tags exactly match policy list"
+  );
+
+  // One context tag is not in the policy list
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production", "debug"] }
+      })
+    ),
+    "Should deny when any context tag is not in the policy list"
+  );
+}
+
+// ForAllValues with a single policy value: every context value must equal that one value.
+#[test]
+fn for_all_values_string_equals_single_policy_value() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAllValues:StringEquals": {
+                  "aws:TagKeys": "production"
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // All context tags equal the single policy value
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production"] }
+      })
+    ),
+    "Should allow when all context tags equal the policy value"
+  );
+
+  // One context tag differs from the policy value
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["production", "staging"] }
+      })
+    ),
+    "Should deny when any context tag differs from the policy value"
+  );
+}
+
+// ForAnyValue:StringNotEquals — deny if any context value appears in the policy list.
+#[test]
+fn for_any_value_string_not_equals() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAnyValue:StringNotEquals": {
+                  "aws:TagKeys": ["restricted", "confidential"]
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // No context tag matches any policy value — condition is satisfied
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["public", "open"] }
+      })
+    ),
+    "Should allow when no context tag matches the policy list"
+  );
+
+  // A context tag matches a policy value — condition fails
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["public", "restricted"] }
+      })
+    ),
+    "Should deny when any context tag matches the policy list"
+  );
+}
+
+// ForAllValues:StringNotEquals — deny if any context value appears in the policy list.
+#[test]
+fn for_all_values_string_not_equals() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAllValues:StringNotEquals": {
+                  "aws:TagKeys": ["restricted", "confidential"]
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // No context tag matches any policy value
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["public", "open"] }
+      })
+    ),
+    "Should allow when no context tag matches the policy list"
+  );
+
+  // One context tag matches a policy value
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["public", "confidential"] }
+      })
+    ),
+    "Should deny when any context tag matches the policy list"
+  );
+}
+
+// ForAnyValue:StringLike — allow if at least one context value matches at least one glob pattern.
+#[test]
+fn for_any_value_string_like() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAnyValue:StringLike": {
+                  "aws:TagKeys": ["prod-*", "staging-*"]
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // One context tag matches a pattern
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["prod-us-east-1", "debug"] }
+      })
+    ),
+    "Should allow when one tag matches a pattern"
+  );
+
+  // No context tag matches any pattern
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["development", "debug"] }
+      })
+    ),
+    "Should deny when no tag matches any pattern"
+  );
+}
+
+// ForAllValues:StringLike — allow only if every context value matches at least one glob pattern.
+#[test]
+fn for_all_values_string_like() {
+  let policy = json!({
+      "Version": "2012-10-17",
+      "Statement": [{
+          "Effect": "Allow",
+          "Principal": {"AWS": "testuser"},
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::bucket/*",
+          "Condition": {
+              "ForAllValues:StringLike": {
+                  "aws:TagKeys": ["prod-*", "staging-*"]
+              }
+          }
+      }]
+  });
+
+  let evaluator = compile_policy(policy);
+
+  // All context tags match a pattern
+  assert!(
+    evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["prod-us-east-1", "staging-eu-west-1"] }
+      })
+    ),
+    "Should allow when all tags match a pattern"
+  );
+
+  // One context tag does not match any pattern
+  assert!(
+    !evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "TagKeys": ["prod-us-east-1", "development"] }
+      })
+    ),
+    "Should deny when any tag does not match any pattern"
   );
 }

@@ -1,27 +1,15 @@
-use std::{collections::HashMap, env, error::Error, fs::OpenOptions};
+use std::{env, error::Error, fs::OpenOptions};
 
 use regoer::Regoer;
 use serde::Serialize;
+use serde_json::json;
 
 #[derive(Serialize)]
 struct Input {
   principal: &'static str,
   action: &'static str,
   resource: &'static str,
-  aws: AwsVariables,
-}
-
-#[derive(Serialize)]
-struct AwsVariables {
-  #[serde(rename = "PrincipalType")]
-  principal_type: &'static str,
-  #[serde(rename = "CurrentTime")]
-  current_time: &'static str,
-  userid: &'static str,
-  #[serde(rename = "SourceIp")]
-  source_ip: &'static str,
-  #[serde(rename = "BucketTag")]
-  bucket_tag: HashMap<&'static str, &'static str>,
+  aws: serde_json::Value,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -40,20 +28,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     principal: "apognu",
     action: "s3:GetObject",
     resource: "arn:aws:s3:::public/apognu/image.jpg",
-    aws: AwsVariables {
-      principal_type: "AssumedRole",
-      current_time: "2026-02-15T22:46:30Z",
-      userid: "apognu",
-      source_ip: "10.12.13.14",
-      bucket_tag: {
-        let mut map = HashMap::default();
-        map.insert("env", "staging");
-        map
+    aws: json!({
+      "PrincipalType": "AssumedRole",
+      "CurrentTime": "2026-02-15T22:46:30Z",
+      "userid": "apognu",
+      "SourceIp": "10.12.13.14",
+      "BucketTag": {
+        "env": "staging",
       },
-    },
+      "BucketAlias": ["delivery", "cdn", "files"],
+    }),
   };
 
-  let allowed = evaluator.evaluate(input)?;
+  let allowed = evaluator.evaluate(&input)?;
 
   println!("allowed = {allowed}");
 

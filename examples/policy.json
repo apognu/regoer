@@ -12,6 +12,9 @@
           "aws:PrincipalType": ["AssumedRole", "User"],
           "aws:userid": "apognu"
         },
+        "ForAnyValue:StringEquals": {
+          "aws:BucketAlias": ["cdn"]
+        },
         "IpAddress": {
           "aws:SourceIp": ["10.0.0.0/8", "192.168.0.0/24"]
         },
