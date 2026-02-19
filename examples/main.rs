@@ -20,9 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
   let evaluator = regoer.compile()?;
 
-  for policy in evaluator.rego() {
-    println!("{}", policy.serialize()?);
-  }
+  println!("{}", evaluator);
 
   let input = Input {
     principal: "apognu",

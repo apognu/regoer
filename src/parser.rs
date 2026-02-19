@@ -15,6 +15,11 @@ default deny = false
 default permit = false
 to_array(x) := x if { is_array(x) }
 to_array(x) := [x] if { not is_array(x) }
+arn_like(lhs, rhs) if {
+    count(indexof_n(lhs, ":")) == 5
+    count(indexof_n(rhs, ":")) == 5
+    glob.match(lhs, [":"], rhs)
+}
 allow if {
   permit
   not deny

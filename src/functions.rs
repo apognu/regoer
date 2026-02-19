@@ -19,6 +19,10 @@ impl Func {
     Expr::call("time.parse_rfc3339_ns", vec![dt])
   }
 
+  pub fn arn_like(lhs: Expr, rhs: Expr) -> Expr {
+    Expr::call("arn_like", vec![lhs, rhs])
+  }
+
   pub fn to_array(expr: Expr) -> Expr {
     let path = match &expr {
       Expr::Var(v) => &v.0,

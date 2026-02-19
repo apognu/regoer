@@ -23,7 +23,7 @@ impl Negatable for ConditionOperator {
 
     matches!(
       self.operator,
-      StringNotEquals | StringNotEqualsIgnoreCase | NumericNotEquals | StringNotLike | NotIpAddress | DateNotEquals
+      StringNotEquals | StringNotEqualsIgnoreCase | NumericNotEquals | StringNotLike | NotIpAddress | DateNotEquals | ArnNotEquals | ArnNotLike
     )
   }
 
@@ -99,6 +99,9 @@ pub fn build_condition(operator: &ConditionOperator, condition: &[CondPair]) -> 
 
     IpAddress => compare(operator, condition, to_str, Func::cidr_contains),
     NotIpAddress => compare(operator, condition, to_str, |polvalue, ctxvalue| Expr::neg(Func::cidr_contains(polvalue, ctxvalue))),
+
+    ArnLike | ArnEquals => compare(operator, condition, to_str, Func::arn_like),
+    ArnNotLike | ArnNotEquals => compare(operator, condition, to_str, |polvalue, ctxvalue| Expr::Neg(Func::arn_like(polvalue, ctxvalue).boxed())),
 
     _ => Err(Error::UnsupportedFunction(format!("{:?}", operator.operator)))?,
   }

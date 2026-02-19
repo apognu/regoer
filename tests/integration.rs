@@ -2525,3 +2525,56 @@ fn for_all_values_string_like() {
     "Should deny when any tag does not match any pattern"
   );
 }
+
+// ArnLike - allow only when in ARN shape and matching ARNs
+#[test]
+fn arn_like() {
+  for op in ["ArnLike", "ArnEquals"] {
+    let policy = json!({
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Effect": "Allow",
+            "Principal": {"AWS": "testuser"},
+            "Action": "s3:GetObject",
+            "Resource": "*",
+            "Condition": {
+                op: {
+                    "aws:PrincipalArn": "arn:aws:iam:us-*::admin-*"
+                }
+            }
+        }]
+    });
+
+    let evaluator = compile_policy(policy);
+
+    assert!(evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "any",
+          "aws": { "PrincipalArn": "arn:aws:iam:us-east-1::admin-apognu" }
+      })
+    ),);
+
+    assert!(!evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "PrincipalArn": "arn:aws:iam:us-east-1::user-apognu" }
+      })
+    ));
+
+    assert!(!evaluate(
+      &evaluator,
+      json!({
+          "principal": "testuser",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::bucket/file.txt",
+          "aws": { "PrincipalArn": "arn:aws:iam:us-east-1:admin-apognu" }
+      })
+    ));
+  }
+}
