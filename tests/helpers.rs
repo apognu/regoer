@@ -11,7 +11,7 @@ pub fn compile_policy(policy_json: serde_json::Value) -> regoer::Evaluator {
 }
 
 pub fn evaluate(evaluator: &regoer::Evaluator, input: serde_json::Value) -> bool {
-  evaluator.evaluate(input).unwrap()
+  evaluator.evaluate(&input).unwrap()
 }
 
 pub fn input(attrs: serde_json::Value) -> serde_json::Value {
