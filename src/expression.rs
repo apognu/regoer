@@ -2,9 +2,10 @@ use std::fmt::{self, Write};
 
 use crate::{
   conditions::{Conditions, build_condition},
+  emit::Emit,
   interpolation::substitute_variables,
   parser::Error,
-  values::{Effect, Value},
+  values::Effect,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -80,59 +81,77 @@ impl Expr {
 }
 
 pub trait Repr: fmt::Debug + Eq + PartialEq {
-  fn repr(&self) -> Result<String, Error>;
+  fn repr(&self, buf: &mut String) -> Result<(), Error>;
+
+  #[cfg(test)]
+  fn repr_to_string(&self) -> Result<String, Error> {
+    let mut s = String::new();
+    self.repr(&mut s)?;
+    Ok(s)
+  }
 }
 
 impl Repr for Expr {
-  fn repr(&self) -> Result<String, Error> {
+  fn repr(&self, buf: &mut String) -> Result<(), Error> {
     match self {
       #[allow(unused_must_use)]
       Expr::Statement(effect, exprs, conditions) => {
-        let mut buf = String::new();
-
         match effect {
-          Effect::Allow => {
-            writeln!(&mut buf, "permit if {{");
-          }
-
-          Effect::Deny => {
-            writeln!(&mut buf, "deny if {{");
-          }
+          Effect::Allow => buf.push_str("permit if {\n"),
+          Effect::Deny => buf.push_str("deny if {\n"),
         }
 
         for expr in exprs {
-          writeln!(&mut buf, "  {}", expr.repr()?);
+          emit!(buf, "  ", expr, '\n');
         }
 
         if !conditions.is_empty() {
           for (operator, condition) in conditions {
             for cond in build_condition(operator, condition)? {
-              writeln!(&mut buf, "  {}", cond.repr()?);
+              emit!(buf, "  ", cond, '\n');
             }
           }
         }
 
-        writeln!(buf, "}}");
-
-        Ok(buf)
+        buf.push_str("}\n");
       }
 
-      Expr::Call(e) => e.repr(),
-      Expr::Var(e) => e.repr(),
-      Expr::List(e) => e.as_slice().repr(),
-      Expr::AnyIn(e) => Ok(format!("{}[_]", e.repr()?)),
-      Expr::Bool(e) => Ok(format!("{e}")),
-      Expr::Str(e) => e.repr(),
-      Expr::Int(e) => Ok(format!("{e}")),
-      Expr::Neg(e) => Ok(format!("not {}", e.repr()?)),
-      Expr::Eq(lhs, rhs) => Ok(format!("{} == {}", lhs.repr()?, rhs.repr()?)),
-      Expr::Ne(lhs, rhs) => Ok(format!("{} != {}", lhs.repr()?, rhs.repr()?)),
-      Expr::Gt(lhs, rhs) => Ok(format!("{} > {}", lhs.repr()?, rhs.repr()?)),
-      Expr::Gte(lhs, rhs) => Ok(format!("{} >= {}", lhs.repr()?, rhs.repr()?)),
-      Expr::Lt(lhs, rhs) => Ok(format!("{} < {}", lhs.repr()?, rhs.repr()?)),
-      Expr::Lte(lhs, rhs) => Ok(format!("{} <= {}", lhs.repr()?, rhs.repr()?)),
-      Expr::Every(var, lhs, rhs) => Ok(format!("every {} in {} {{ {} }}", var.repr()?, lhs.repr()?, rhs.repr()?)),
+      Expr::Call(e) => e.repr(buf)?,
+      Expr::Var(e) => e.repr(buf)?,
+      Expr::List(e) => e.as_slice().repr(buf)?,
+      Expr::AnyIn(e) => {
+        emit!(buf, e, "[_]");
+      }
+      Expr::Bool(e) => write!(buf, "{e}")?,
+      Expr::Str(e) => e.repr(buf)?,
+      Expr::Int(e) => write!(buf, "{e}")?,
+      Expr::Neg(e) => {
+        emit!(buf, "not ", e);
+      }
+      Expr::Eq(lhs, rhs) => {
+        emit!(buf, lhs, " == ", rhs);
+      }
+      Expr::Ne(lhs, rhs) => {
+        emit!(buf, lhs, " != ", rhs);
+      }
+      Expr::Gt(lhs, rhs) => {
+        emit!(buf, lhs, " > ", rhs);
+      }
+      Expr::Gte(lhs, rhs) => {
+        emit!(buf, lhs, " >= ", rhs);
+      }
+      Expr::Lt(lhs, rhs) => {
+        emit!(buf, lhs, " < ", rhs);
+      }
+      Expr::Lte(lhs, rhs) => {
+        emit!(buf, lhs, " <= ", rhs);
+      }
+      Expr::Every(var, lhs, rhs) => {
+        emit!(buf, "every ", var, " in ", lhs, " { ", rhs, " }");
+      }
     }
+
+    Ok(())
   }
 }
 
@@ -143,6 +162,10 @@ pub enum Str {
 }
 
 impl Str {
+  pub fn literal<S: AsRef<str>>(lit: S) -> Str {
+    Str::Plain(lit.as_ref().to_string())
+  }
+
   pub fn tmpl<S: AsRef<str>>(lit: S, args: Vec<Expr>) -> Str {
     Str::Template(lit.as_ref().to_string(), args)
   }
@@ -155,11 +178,15 @@ impl From<String> for Str {
 }
 
 impl Repr for Str {
-  fn repr(&self) -> Result<String, Error> {
+  fn repr(&self, buf: &mut String) -> Result<(), Error> {
     match self {
-      Str::Plain(s) => Ok(format!(r#""{s}""#)),
-      Str::Template(t, vars) => Ok(format!(r"sprintf({}, {})", t.as_str().repr()?, vars.as_slice().repr()?)),
+      Str::Plain(s) => write!(buf, r#""{s}""#)?,
+      Str::Template(t, vars) => {
+        emit!(buf, "sprintf(", Expr::Str(Str::literal(t)), ", ", vars.as_slice(), ")");
+      }
     }
+
+    Ok(())
   }
 }
 
@@ -167,8 +194,9 @@ impl Repr for Str {
 pub struct Var(pub String);
 
 impl Repr for Var {
-  fn repr(&self) -> Result<String, Error> {
-    Ok(self.0.to_string())
+  fn repr(&self, buf: &mut String) -> Result<(), Error> {
+    buf.push_str(&self.0);
+    Ok(())
   }
 }
 
@@ -176,41 +204,36 @@ impl Repr for Var {
 pub struct Call(pub &'static str, pub Vec<Expr>);
 
 impl Repr for Call {
-  fn repr(&self) -> Result<String, Error> {
-    let args = self.1.iter().try_fold(vec![], |mut acc, i| {
-      acc.push(i.repr()?);
-      Ok::<_, Error>(acc)
-    })?;
+  fn repr(&self, buf: &mut String) -> Result<(), Error> {
+    buf.push_str(self.0);
+    buf.push('(');
 
-    Ok(format!("{}({})", self.0, args.as_slice().join(", ")))
+    for (i, arg) in self.1.iter().enumerate() {
+      if i > 0 {
+        buf.push_str(", ");
+      }
+      arg.repr(buf)?;
+    }
+
+    buf.push(')');
+
+    Ok(())
   }
 }
 
 impl<T: Repr> Repr for &[T] {
-  fn repr(&self) -> Result<String, Error> {
-    let list = self.iter().try_fold(vec![], |mut acc, i| {
-      acc.push(i.repr()?);
-      Ok::<_, Error>(acc)
-    })?;
+  fn repr(&self, buf: &mut String) -> Result<(), Error> {
+    buf.push('[');
 
-    Ok(format!(r#"[{}]"#, list.join(", ")))
-  }
-}
-
-impl Repr for &str {
-  fn repr(&self) -> Result<String, Error> {
-    Ok(format!(r#""{}""#, self))
-  }
-}
-
-impl<T> Repr for Value<T>
-where
-  T: Repr,
-{
-  fn repr(&self) -> Result<String, Error> {
-    match self {
-      Value::One(one) => one.repr(),
-      Value::Many(list) => list.as_slice().repr(),
+    for (i, item) in self.iter().enumerate() {
+      if i > 0 {
+        buf.push_str(", ");
+      }
+      item.repr(buf)?;
     }
+
+    buf.push(']');
+
+    Ok(())
   }
 }

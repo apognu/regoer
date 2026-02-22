@@ -55,7 +55,7 @@ pub fn build_condition(operator: &ConditionOperator, condition: &[CondPair]) -> 
   use aws_iam::model::GlobalConditionOperator::*;
 
   match &operator.operator {
-    Bool => condition.iter().try_fold(vec![], |mut acc, (attr, values)| {
+    Bool => condition.iter().try_fold(Vec::with_capacity(condition.len()), |mut acc, (attr, values)| {
       acc.push(match values.map(to_bool)? {
         Value::One(one) => Expr::Eq(resolve(attr)?.boxed(), one.boxed()),
         Value::Many(list) => Expr::Eq(Expr::AnyIn(Expr::list(list).boxed()).boxed(), resolve(attr)?.boxed()),
@@ -114,7 +114,7 @@ where
 {
   let is_neg = operator.is_neg();
 
-  condition.iter().try_fold(vec![], |mut acc, (attr, values)| {
+  condition.iter().try_fold(Vec::with_capacity(condition.len()), |mut acc, (attr, values)| {
     let ctxvalue = resolve(attr)?;
 
     acc.push(match values.map(&converter)? {
@@ -188,7 +188,7 @@ mod tests {
     let expr = build_condition(&ConditionOperator::new(Bool), &[(QString::unqualified("username".into()), Value::One(ConditionValue(V::Bool(true))))]).unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"input.username == true"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"input.username == true"#);
 
     let expr = build_condition(
       &ConditionOperator::new(Bool),
@@ -200,7 +200,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"[true, false][_] == input.username"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"[true, false][_] == input.username"#);
   }
 
   #[test]
@@ -212,7 +212,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#""apognu" == input.username"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#""apognu" == input.username"#);
 
     let expr = build_condition(
       &ConditionOperator::new(StringEquals),
@@ -224,7 +224,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"["apognu", "bob"][_] == input.username"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"["apognu", "bob"][_] == input.username"#);
   }
 
   #[test]
@@ -236,7 +236,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"glob.match("apognu", null, input.username)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"glob.match("apognu", null, input.username)"#);
 
     let expr = build_condition(
       &ConditionOperator::new(StringLike),
@@ -248,7 +248,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"glob.match(["apognu", "bob"][_], null, input.username)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"glob.match(["apognu", "bob"][_], null, input.username)"#);
   }
 
   #[test]
@@ -281,7 +281,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#""production" != input.env"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#""production" != input.env"#);
 
     let expr = build_condition(
       &ConditionOperator::new(StringNotEquals),
@@ -293,7 +293,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"every item in ["production", "staging"] { item != input.env }"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"every item in ["production", "staging"] { item != input.env }"#);
   }
 
   #[test]
@@ -305,7 +305,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"lower("APOGNU") == lower(input.username)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"lower("APOGNU") == lower(input.username)"#);
 
     let expr = build_condition(
       &ConditionOperator::new(StringEqualsIgnoreCase),
@@ -317,7 +317,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"lower(["APOGNU", "BOB"][_]) == lower(input.username)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"lower(["APOGNU", "BOB"][_]) == lower(input.username)"#);
   }
 
   #[test]
@@ -329,7 +329,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"lower("PRODUCTION") != lower(input.env)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"lower("PRODUCTION") != lower(input.env)"#);
   }
 
   #[test]
@@ -341,7 +341,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"not glob.match("admin-*", null, input.username)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"not glob.match("admin-*", null, input.username)"#);
 
     let expr = build_condition(
       &ConditionOperator::new(StringNotLike),
@@ -353,7 +353,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"every item in ["admin-*", "root-*"] { not glob.match(item, null, input.username) }"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"every item in ["admin-*", "root-*"] { not glob.match(item, null, input.username) }"#);
   }
 
   #[test]
@@ -365,7 +365,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"1000 == input.max_keys"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"1000 == input.max_keys"#);
 
     let expr = build_condition(
       &ConditionOperator::new(NumericEquals),
@@ -377,7 +377,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"[100, 1000][_] == input.max_keys"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"[100, 1000][_] == input.max_keys"#);
   }
 
   #[test]
@@ -389,7 +389,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"input.s3.content-length < 10485760"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"input.s3.content-length < 10485760"#);
   }
 
   #[test]
@@ -401,7 +401,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"input.age > 18"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"input.age > 18"#);
   }
 
   #[test]
@@ -413,7 +413,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"input.max_size <= 5000"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"input.max_size <= 5000"#);
   }
 
   #[test]
@@ -425,7 +425,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"input.min_size >= 100"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"input.min_size >= 100"#);
   }
 
   #[test]
@@ -438,7 +438,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"time.parse_rfc3339_ns("2025-01-01T00:00:00Z") == time.parse_rfc3339_ns(input.aws.CurrentTime)"#
     );
   }
@@ -453,7 +453,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"time.parse_rfc3339_ns(input.aws.CurrentTime) > time.parse_rfc3339_ns("2025-01-01T00:00:00Z")"#
     );
   }
@@ -468,7 +468,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"time.parse_rfc3339_ns(input.aws.CurrentTime) < time.parse_rfc3339_ns("2025-12-31T23:59:59Z")"#
     );
   }
@@ -482,7 +482,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"net.cidr_contains("192.168.1.0/24", input.aws.SourceIp)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"net.cidr_contains("192.168.1.0/24", input.aws.SourceIp)"#);
 
     let expr = build_condition(
       &ConditionOperator::new(IpAddress),
@@ -494,7 +494,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"net.cidr_contains(["192.168.1.0/24", "10.0.0.0/8"][_], input.aws.SourceIp)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"net.cidr_contains(["192.168.1.0/24", "10.0.0.0/8"][_], input.aws.SourceIp)"#);
   }
 
   #[test]
@@ -506,7 +506,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"not net.cidr_contains("10.0.0.0/8", input.aws.SourceIp)"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"not net.cidr_contains("10.0.0.0/8", input.aws.SourceIp)"#);
 
     let expr = build_condition(
       &ConditionOperator::new(NotIpAddress),
@@ -519,7 +519,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in ["10.0.0.0/8", "192.168.0.0/24"] { not net.cidr_contains(item, input.aws.SourceIp) }"#
     );
   }
@@ -537,7 +537,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"["production", "staging"][_] == to_array(object.get(input, "tags", []))[_]"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"["production", "staging"][_] == to_array(object.get(input, "tags", []))[_]"#);
   }
 
   #[test]
@@ -554,7 +554,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "tags", [])) { every val in ["production", "staging"] { val != item } }"#
     );
   }
@@ -574,7 +574,7 @@ mod tests {
     assert_eq!(expr.len(), 1);
     // This should check that every item in input.tags matches at least one of the policy values
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "tags", [])) { ["production", "staging"][_] == item }"#
     );
   }
@@ -593,7 +593,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "tags", [])) { every val in ["production", "staging"] { val != item } }"#
     );
   }
@@ -607,7 +607,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"[80, 443][_] == to_array(object.get(input, "ports", []))[_]"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"[80, 443][_] == to_array(object.get(input, "ports", []))[_]"#);
   }
 
   #[test]
@@ -622,7 +622,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"every item in to_array(object.get(input, "ports", [])) { item > [1024, 2048][_] }"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"every item in to_array(object.get(input, "ports", [])) { item > [1024, 2048][_] }"#);
   }
 
   #[test]
@@ -637,7 +637,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"glob.match(["/home/*", "/tmp/*"][_], null, to_array(object.get(input, "paths", []))[_])"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"glob.match(["/home/*", "/tmp/*"][_], null, to_array(object.get(input, "paths", []))[_])"#);
   }
 
   #[test]
@@ -653,7 +653,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "paths", [])) { glob.match(["/safe/*", "/public/*"][_], null, item) }"#
     );
   }
@@ -671,7 +671,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"net.cidr_contains(["10.0.0.0/8", "192.168.0.0/16"][_], to_array(object.get(input.aws, "SourceIp", []))[_])"#
     );
   }
@@ -689,7 +689,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input.aws, "SourceIp", [])) { net.cidr_contains(["10.0.0.0/8", "192.168.0.0/16"][_], item) }"#
     );
   }
@@ -706,7 +706,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"to_array(object.get(input, "values", []))[_] < [100, 200][_]"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"to_array(object.get(input, "values", []))[_] < [100, 200][_]"#);
   }
 
   #[test]
@@ -721,7 +721,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"every item in to_array(object.get(input, "limits", [])) { item <= [1000, 5000][_] }"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"every item in to_array(object.get(input, "limits", [])) { item <= [1000, 5000][_] }"#);
   }
 
   #[test]
@@ -737,7 +737,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"time.parse_rfc3339_ns(to_array(object.get(input.aws, "TokenIssueTime", []))[_]) > time.parse_rfc3339_ns(["2025-01-01T00:00:00Z", "2025-06-01T00:00:00Z"][_])"#
     );
   }
@@ -755,7 +755,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input.aws, "TokenExpiry", [])) { time.parse_rfc3339_ns(item) < time.parse_rfc3339_ns(["2026-12-31T23:59:59Z", "2027-12-31T23:59:59Z"][_]) }"#
     );
   }
@@ -773,7 +773,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "paths", [])) { every val in ["/admin/*", "/root/*"] { not glob.match(val, null, item) } }"#
     );
   }
@@ -788,7 +788,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "ports", [])) { every val in [22, 23] { val != item } }"#
     );
   }
@@ -806,7 +806,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     // At least one context value must equal the single policy value
-    assert_eq!(expr[0].repr().unwrap(), r#"["production"][_] == to_array(object.get(input, "tags", []))[_]"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"["production"][_] == to_array(object.get(input, "tags", []))[_]"#);
   }
 
   #[test]
@@ -819,7 +819,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     // Every context value must equal the single policy value
-    assert_eq!(expr[0].repr().unwrap(), r#"every item in to_array(object.get(input, "tags", [])) { ["production"][_] == item }"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"every item in to_array(object.get(input, "tags", [])) { ["production"][_] == item }"#);
   }
 
   #[test]
@@ -833,7 +833,7 @@ mod tests {
     assert_eq!(expr.len(), 1);
     // No context value must equal the single policy value
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "tags", [])) { every val in ["production"] { val != item } }"#
     );
   }
@@ -848,7 +848,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "tags", [])) { every val in ["production"] { val != item } }"#
     );
   }
@@ -862,7 +862,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"[443][_] == to_array(object.get(input, "ports", []))[_]"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"[443][_] == to_array(object.get(input, "ports", []))[_]"#);
   }
 
   #[test]
@@ -874,7 +874,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"every item in to_array(object.get(input, "ports", [])) { [443][_] == item }"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"every item in to_array(object.get(input, "ports", [])) { [443][_] == item }"#);
   }
 
   #[test]
@@ -886,7 +886,7 @@ mod tests {
     .unwrap();
 
     assert_eq!(expr.len(), 1);
-    assert_eq!(expr[0].repr().unwrap(), r#"glob.match(["/home/*"][_], null, to_array(object.get(input, "paths", []))[_])"#);
+    assert_eq!(expr[0].repr_to_string().unwrap(), r#"glob.match(["/home/*"][_], null, to_array(object.get(input, "paths", []))[_])"#);
   }
 
   #[test]
@@ -899,7 +899,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "paths", [])) { glob.match(["/safe/*"][_], null, item) }"#
     );
   }
@@ -917,7 +917,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input, "paths", [])) { every val in ["/admin/*", "/root/*"] { not glob.match(val, null, item) } }"#
     );
   }
@@ -935,7 +935,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input.aws, "SourceIp", [])) { every val in ["10.0.0.0/8", "192.168.0.0/16"] { not net.cidr_contains(val, item) } }"#
     );
   }
@@ -953,7 +953,7 @@ mod tests {
 
     assert_eq!(expr.len(), 1);
     assert_eq!(
-      expr[0].repr().unwrap(),
+      expr[0].repr_to_string().unwrap(),
       r#"every item in to_array(object.get(input.aws, "SourceIp", [])) { every val in ["10.0.0.0/8", "192.168.0.0/16"] { not net.cidr_contains(val, item) } }"#
     );
   }

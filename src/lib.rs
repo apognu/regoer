@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 
 mod conditions;
+#[macro_use]
+mod emit;
 mod expression;
 mod extensions;
 mod functions;
@@ -148,7 +150,7 @@ impl Evaluator {
   /// Apart from `principal`, `action` and `resource`, this object is freeform, but
   /// should match what is expected from the compiled policies.
   pub fn evaluate(&self, input: &impl Serialize) -> Result<bool, Error> {
-    let input: serde_json::Value = serde_json::to_value(&input).map_err(|err| Error::GenericError(err.to_string()))?;
+    let input: serde_json::Value = serde_json::to_value(input).map_err(|err| Error::GenericError(err.to_string()))?;
     let result = self.policy.eval_with_input(input.into()).map_err(|err| Error::GenericError(err.to_string()))?;
 
     result.as_bool().copied().map_err(|err| Error::GenericError(err.to_string()))

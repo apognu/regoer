@@ -16,9 +16,9 @@ default permit = false
 to_array(x) := x if { is_array(x) }
 to_array(x) := [x] if { not is_array(x) }
 arn_like(lhs, rhs) if {
-    count(indexof_n(lhs, ":")) == 5
-    count(indexof_n(rhs, ":")) == 5
-    glob.match(lhs, [":"], rhs)
+  count(indexof_n(lhs, ":")) == 5
+  count(indexof_n(rhs, ":")) == 5
+  glob.match(lhs, [":"], rhs)
 }
 allow if {
   permit
@@ -58,12 +58,12 @@ pub struct Policy(pub(crate) Vec<Expr>);
 impl Policy {
   /// Serialize the parsed policy to Rego
   pub fn serialize(&self) -> Result<String, Error> {
-    let mut buf = String::new();
+    let mut buf = String::with_capacity(1024);
 
     writeln!(buf, "{}", BASE)?;
 
     for statement in &self.0 {
-      writeln!(buf, "{}", statement.repr()?)?;
+      statement.repr(&mut buf)?;
     }
 
     Ok(buf)
@@ -112,7 +112,7 @@ where
 
     let resources = match statement.resource {
       Resource::Resource(r) => match r {
-        OneOrAny::AnyOf(list) => Value::Many(list.clone()).into(),
+        OneOrAny::AnyOf(list) => Value::Many(list).into(),
         OneOrAny::One(one) => Value::One(one).into(),
         OneOrAny::Any => Err(Error::UnsupportedWildcard)?,
       },

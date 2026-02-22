@@ -16,6 +16,8 @@ pub enum SubstitutionError {
   EmptyExpression,
 }
 
+const INPUT_PREFIX: &str = "input.";
+
 pub fn substitute_variables(template: &str) -> Result<Str, Error> {
   if !template.contains("${") {
     return Ok(Str::Plain(template.to_string()));
@@ -48,7 +50,13 @@ pub fn substitute_variables(template: &str) -> Result<Str, Error> {
 
         validate_variable_expr(var_part)?;
 
-        let variable = format!("input.{}", var_part.replace(":", ".").replace("/", "."));
+        let mut variable = String::with_capacity(INPUT_PREFIX.len() + var_part.len());
+
+        variable.push_str(INPUT_PREFIX);
+
+        for c in var_part.chars() {
+          variable.push(if c == ':' || c == '/' { '.' } else { c });
+        }
 
         let variable: Expr = if let Some(default) = default_value {
           let (object, path) = {
@@ -91,7 +99,7 @@ fn handle_special_variable(expr: &str) -> Option<&'static str> {
   }
 }
 
-fn parse_variable_with_default(expr: &str) -> (&str, Option<String>) {
+fn parse_variable_with_default(expr: &str) -> (&str, Option<&str>) {
   if let Some(comma_pos) = expr.find(',') {
     let var_part = expr[..comma_pos].trim();
     let default_part = expr[comma_pos + 1..].trim();
@@ -104,15 +112,15 @@ fn parse_variable_with_default(expr: &str) -> (&str, Option<String>) {
   (expr, None)
 }
 
-fn extract_quoted_string(s: &str) -> Option<String> {
+fn extract_quoted_string(s: &str) -> Option<&str> {
   let trimmed = s.trim();
 
   if trimmed.starts_with('\'') && trimmed.ends_with('\'') && trimmed.len() >= 2 {
-    return Some(trimmed[1..trimmed.len() - 1].to_string());
+    return Some(&trimmed[1..trimmed.len() - 1]);
   }
 
   if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
-    return Some(trimmed[1..trimmed.len() - 1].to_string());
+    return Some(&trimmed[1..trimmed.len() - 1]);
   }
 
   None

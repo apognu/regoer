@@ -56,7 +56,7 @@ impl<T> Value<T> {
     match self {
       Value::One(one) => Ok(Value::One(f(one)?)),
 
-      Value::Many(list) => Ok(Value::Many(list.iter().try_fold(vec![], |mut acc, item| {
+      Value::Many(list) => Ok(Value::Many(list.iter().try_fold(Vec::with_capacity(list.len()), |mut acc, item| {
         acc.push(f(item)?);
 
         Ok::<_, Error>(acc)
